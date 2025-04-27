@@ -6,6 +6,7 @@
 
 // 00
 extern void *DAT_00c26ac5;
+extern void *DAT_00c2e938;
 
 // 02
 extern void *DAT_02b43200;
@@ -22,6 +23,7 @@ extern void *DAT_0340260c;
 extern void *DAT_03402618;
 extern void *DAT_03402608;
 extern void *DAT_03402610;
+extern void *DAT_0340261c;
 
 // misc
 

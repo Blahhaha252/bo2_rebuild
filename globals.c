@@ -2,6 +2,7 @@
 
 // 00
 void *DAT_00c26ac5 = NULL;
+void *DAT_00c2e938 = NULL;
 
 // 02
 void *DAT_02b43200 = NULL;
@@ -18,6 +19,7 @@ void *DAT_0340260c = NULL;
 void *DAT_03402618 = NULL;
 void *DAT_03402608 = NULL;
 void *DAT_03402610 = NULL;
+void *DAT_0340261c = NULL;
 
 // misc
 void *steam_heap_handle = NULL;

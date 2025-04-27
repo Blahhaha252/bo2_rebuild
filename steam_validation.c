@@ -3,30 +3,77 @@
 #include <stdint.h>
 #include "steam_validation.h"
 
-//FUN_004168c0 -> pre_steam_checks                       |  (this_file)
-//  FUN_00421e60 -> steam_check_environment              |  (this_file)
-//    FUN_004f1fc0 -> flattened                          |  (this_file)
-//    FUN_006ce670 -> steam_environment_validate         |  (this_file)
-//      FUN_006d7ae0 -> initalize_random_seed (END)      |  (this_file)
-//      FUN_005584b0 -> flattened (redudent logic)       |  (this_file)
-//        FUN_005ffea0 -> write_steam_data_string (END)  |  (this_file)
-//      FUN_005246a0 -> create_or_open_file_mapping      |  (this_file)
+//FUN_004168c0 -> pre_steam_checks                          |  (this_file)
+//  FUN_00421e60 -> steam_check_environment                 |  (this_file)
+//    FUN_004f1fc0 -> flattened                             |  (this_file)
+//    FUN_006ce670 -> steam_environment_validate            |  (this_file)
+//      FUN_006d7ae0 -> initalize_random_seed (END)         |  (this_file)
+//      FUN_005584b0 -> flattened (redudent logic)          |  (this_file)
+//        FUN_005ffea0 -> write_steam_data_string (END)     |  (this_file)
+//      FUN_005246a0 -> create_or_open_file_mapping (END)   |  (this_file)
+//      FUN_0045f5b0 -> map_data_block (end)                |  (this_file)
+//    FUN_0040d540 -> patch_random_callback                 |  (this_file)
+//      FUN_009af460 -> secure_exit (end)                   |  (this_file)
 
+void secure_exit(void) {
+    UINT clear_count;
+    unsigned char *clear_ptr;
+    unsigned char temp_buffer[2048];
+    
+    // Start clearing from a base stack address (simulated)
+    clear_ptr = (unsigned char *)register0x00000010;
 
-typedef struct {
-    HANDLE hMapping;
-    LPVOID pView;
-    DWORD size;
-} FileMappingInfo;
-bool validate_and_copy_seed_data(void) {
-    if (DAT_03402618 == NULL) {
-        return false;
+    // Calculate how much stack memory to clear
+    clear_count = ((uintptr_t)&stack0x00001000 & 0xFFFFF000) - (uintptr_t)&stack0x00000000;
+
+    while (clear_count != 0) {
+        *clear_ptr = 0;
+        clear_ptr++;
+        clear_count--;
     }
 
-    DAT_0340261c = (void *)&DAT_00c2e938;
-    memcpy(DAT_03402618, &DAT_00c2e938, 0x1000);
+    // Fill temp_buffer with newline characters (0x0A)
+    memset(temp_buffer, 0x0A, sizeof(temp_buffer));
 
-    return true;
+    // Immediately exit process (will not return)
+    ExitProcess(0);
+}
+
+void patch_random_callback(char should_patch, int num_callbacks, int base_address) {
+    DWORD tick_count;
+    
+    if (should_patch == 0) {
+        if (num_callbacks < 1) {
+            return;
+        }
+        
+        if (num_callbacks == 1) {
+            *(void **)(base_address - 4) = secure_exit; //FUN_009af460
+            return;
+        }
+        
+        DWORD tick_count = GetTickCount();
+        int random_index = tick_count % (num_callbacks - 1);
+
+        // Pretend 'stack' starts at some base like &stack0x00000010
+        int *stack_base = (int *)&stack0x00000010;
+
+        // Find the address stored at that slot
+        int target_address = stack_base[random_index];
+
+        // Patch 4 bytes *before* the target address
+        *(void **)(target_address - 4) = secure_exit; //FUN_009af460
+    }
+}
+
+
+int map_data_block(void) {
+    if (DAT_03402618 == NULL) {
+        retrun 0;
+    }
+    DAT_0340261c = &DAT_00c2e938;
+    memcpy(DAT_03402618, &DAT_00c2e938, 0x1000); // 4KB copy
+    return 1;
 }
 int create_or_open_file_mapping(FileMappingInfo *info, HANDLE fileHandle, DWORD protectFlags, DWORD size, LPCSTR name) {
     // Clear output structure
@@ -152,7 +199,7 @@ int steam_environment_validate(void) {
                 DAT_03402618 = *(uint32_t *)(DAT_0340260c + 4);
 
                 // Validate the mapped memory (FUN_0045f5b0)
-                mappingSuccess = FUN_0045f5b0();
+                mappingSuccess = map_data_block();
             }
         }
     } else {
@@ -183,8 +230,11 @@ int steam_check_environment(void) {
     
     check1 = steam_environment_validate(); //FUN_006ce670
     if (check1 == 0) {
-        FUN_0040d540(0, 0);
+        patch_random_callback(0, 0); //FUN_0040d540
     }
+
+    // ---------- this is where i am currently ---------- //
+    // ---------- YA CANT MISS ME ----------//
 
     // General Steam environment setup
     FUN_009ae4f0();
@@ -194,7 +244,7 @@ int steam_check_environment(void) {
     DAT_03401f54 = FUN_00601f30();
 
     if (check2 != 0) {
-        FUN_0040d540(0, 0);
+        patch_random_callback(0, 0); //FUN_0040d540
     }
 
     // Environment Hash Validation

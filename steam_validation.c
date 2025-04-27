@@ -135,7 +135,7 @@ int steam_environment_validate(void) {
             // If string write failed, entire validation fails
             mappingSuccess = false;
         } else {
-            //FUN_005246a0
+            // validate mapped memory  |||  FUN_005246a0
             mappingSuccess = create_or_open_file_mapping(0, 4, 0x1000, localBuffer);
 
             if (mappingSuccess) {

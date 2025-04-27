@@ -93,55 +93,6 @@ extern char* DAT_0341020c;
 void 
 
 // ######### Steam check code ##########//
-uint32_t initialize_random_seed(void) {
-    HMODULE advapiModule;
-    typedef BOOLEAN (APIENTRY *RtlGenRandomFunc)(PVOID, ULONG);
-    RtlGenRandomFunc RtlGenRandom;
-
-    advapiModule = LoadLibraryA("advapi32.dll");
-    if (advapiModule != NULL) {
-        RtlGenRandom = (RtlGenRandomFunc)GetProcAddress(advapiModule, "SystemFunction036");
-        FreeLibrary(advapiModule);
-
-        if (RtlGenRandom != NULL) {
-            if (RtlGenRandom(&DAT_03402620, 0x1000)) {
-                DAT_03402610 = *(uint32_t*)&DAT_03402620;
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-int steam_enviroment_validate(void) {
-    char result;
-    int loadSuccess;
-    DWORD tickCount;
-    char localBuffer[260];
-    
-    result = initialize_random_seed();
-    if(result != 0) {
-        DAT_030260c = &DAT_03403620;
-        
-        loadSuccess = FUN_005584b0(localBuffer, sizeof(localBuffer));
-        
-        if (loadSuccess == 0) {
-            result = 0;
-        } else {
-            result = FUN_005246a0(0, 4, 0x1000, localBuffer); // Map/open data
-            if (result != 0) {
-                DAT_03402618 = *(uint32_t *)(DAT_0340260c + 4); // Save mapped data
-                result = FUN_0045f5b0(); // Validate mapping
-            }
-        }
-    }
-    tickCount = GetTickCount();
-    DAT_03402608 = tickCount % 958;
-
-    return (result != 0);
-}
-   
 
 
 

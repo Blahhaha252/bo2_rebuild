@@ -3,14 +3,14 @@
 #include <stdint.h>
 #include "steam_validation.h"
 
-//FUN_004168c0 -> pre_steam_checks
-//  FUN_00421e60 -> steam_check_environment
-//    FUN_004f1fc0 -> flattened
-//    FUN_006ce670 -> steam_environment_validate
-//      FUN_006d7ae0 -> initalize_random_seed (END)
-//      FUN_005584b0 -> flattened (redudent logic)
-//        FUN_005ffea0 -> write_steam_data_string (END)
-//      FUN_005246a0 -> create_or_open_file_mapping
+//FUN_004168c0 -> pre_steam_checks                       |  (this_file)
+//  FUN_00421e60 -> steam_check_environment              |  (this_file)
+//    FUN_004f1fc0 -> flattened                          |  (this_file)
+//    FUN_006ce670 -> steam_environment_validate         |  (this_file)
+//      FUN_006d7ae0 -> initalize_random_seed (END)      |  (this_file)
+//      FUN_005584b0 -> flattened (redudent logic)       |  (this_file)
+//        FUN_005ffea0 -> write_steam_data_string (END)  |  (this_file)
+//      FUN_005246a0 -> create_or_open_file_mapping      |  (this_file)
 
 
 typedef struct {
@@ -18,7 +18,16 @@ typedef struct {
     LPVOID pView;
     DWORD size;
 } FileMappingInfo;
+bool validate_and_copy_seed_data(void) {
+    if (DAT_03402618 == NULL) {
+        return false;
+    }
 
+    DAT_0340261c = (void *)&DAT_00c2e938;
+    memcpy(DAT_03402618, &DAT_00c2e938, 0x1000);
+
+    return true;
+}
 int create_or_open_file_mapping(FileMappingInfo *info, HANDLE fileHandle, DWORD protectFlags, DWORD size, LPCSTR name) {
     // Clear output structure
     info->hMapping = NULL;
@@ -93,7 +102,7 @@ int write_steam_data_string(char *buffer, uint32_t bufferSize, uint32_t processI
 }
 
 
-uint32_t initialize_random_seed(void) {
+uint32_t initalize_random_seed(void) {
     HMODULE advapiModule;
     typedef BOOLEAN (APIENTRY *RtlGenRandomFunc)(PVOID, ULONG);
     RtlGenRandomFunc RtlGenRandom;

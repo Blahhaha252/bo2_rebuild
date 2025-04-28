@@ -24,6 +24,9 @@ extern void *DAT_03402618;
 extern void *DAT_03402608;
 extern void *DAT_03402610;
 extern void *DAT_0340261c;
+extern void *DAT_034025f0;
+extern void *DAT_034025f4;
+extern void *DAT_034025ec;
 
 // misc
 

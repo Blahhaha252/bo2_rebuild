@@ -14,6 +14,37 @@
 //      FUN_0045f5b0 -> map_data_block (end)                |  (this_file)
 //    FUN_0040d540 -> patch_random_callback                 |  (this_file)
 //      FUN_009af460 -> secure_exit (end)                   |  (this_file)
+//    FUN_009ae4f0 -> initialize_exception_handling (END)   |  (this_file)
+
+int initialize_exception_handling(void) {
+    SIZE_T query_result;
+    IMAGE_DOS_HEADER *current_address = (IMAGE_DOS_HEADER *)0x00400000;
+    MEMORY_BASIC_INFORMATION mem_info;
+
+    do {
+        query_result = VirtualQuery(current_address, &mem_info, sizeof(mem_info));
+        if (query_result == 0) {
+            break;
+        }
+
+        if ((mem_info.BaseAddress < (PVOID)0x009ae4f1) &&
+            ((void *)initialize_exception_handling < (void *)((char *)mem_info.BaseAddress + mem_info.RegionSize))) {
+            DAT_034025f0 = mem_info.BaseAddress;
+            DAT_034025f4 = (void *)((char *)mem_info.BaseAddress + mem_info.RegionSize);
+        }
+
+        current_address = (IMAGE_DOS_HEADER *)((char *)current_address + mem_info.RegionSize);
+    } while (DAT_034025f0 == NULL);
+
+    DAT_034025ec = AddVectoredExceptionHandler(1, exception_handler);
+
+    if (DAT_034025ec != NULL && DAT_034025f0 != NULL) {
+        return 1;
+    }
+    return 0;
+}
+
+
 
 void secure_exit(void) {
     UINT clear_count;
@@ -237,7 +268,7 @@ int steam_check_environment(void) {
     // ---------- YA CANT MISS ME ----------//
 
     // General Steam environment setup
-    FUN_009ae4f0();
+    initialize_exception_handling(); //FUN_009ae4f0
 
     // Callback validation
     check2 = FUN_00542620(FUN_004abe60);

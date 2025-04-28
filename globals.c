@@ -20,6 +20,9 @@ void *DAT_03402618 = NULL;
 void *DAT_03402608 = NULL;
 void *DAT_03402610 = NULL;
 void *DAT_0340261c = NULL;
+void *DAT_034025f0 = NULL;
+void *DAT_034025f4 = NULL;
+void *DAT_034025ec = NULL;
 
 // misc
 void *steam_heap_handle = NULL;

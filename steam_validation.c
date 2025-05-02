@@ -15,6 +15,179 @@
 //    FUN_0040d540 -> patch_random_callback                 |  (this_file)
 //      FUN_009af460 -> secure_exit (end)                   |  (this_file)
 //    FUN_009ae4f0 -> initialize_exception_handling (END)   |  (this_file)
+//    FUN_00542620 -> execute_steam_callback (PASSER)       |  (this_file)
+//      FUN_004abe60 -> run_steam_callback_sequence         |  (this_file)
+//    FUN_00601f30 -> initialize_steam_drm_ipc              |  (this_file)
+//      FUN_0053fe50 -> execute_steam_drm_ipc_transaction   |  (this_file)
+//        FUN_005075e0 -> launch_steam_drm_process          |   (launch_steam_drm.c)
+
+uint32_t execute_steam_drm_ipc_transaction(int *ipc_handles, uint32_t control_flag) {
+    uint32_t result = 0;
+    DWORD waitResult;
+    HANDLE ipcSemaphore = *(HANDLE *)(ipc_handles + 1); // Offset +4
+    HANDLE transactionHandle;
+
+    // Wait up to 0x7531 ms (~30 seconds) for PRODUCE semaphore
+    waitResult = WaitForSingleObject(ipcSemaphore, 0x7531);
+    if (waitResult != WAIT_OBJECT_0) {
+        // If wait failed, set error code and return 0
+        SetLastError(ERROR_SEM_TIMEOUT); // 0x5B4
+        return result;
+    }
+
+    // Attempt to start the IPC transaction
+    transactionHandle = (HANDLE)launch_steam_drm_process(ipc_handles, control_flag, &result); //FUN_005075e0
+    if (transactionHandle != NULL) {
+        // Wait for the transaction to complete (up to 29999 ms)
+        waitResult = WaitForSingleObject(transactionHandle, 29999);
+        CloseHandle(transactionHandle);
+
+        if (waitResult != WAIT_OBJECT_0) {
+            // If wait timed out or failed
+            SetLastError(ERROR_SEM_TIMEOUT);
+        }
+
+        return result;
+    }
+
+    // Transaction failed to start — restore semaphore and propagate error
+    DWORD lastErr = GetLastError();
+    ReleaseSemaphore(ipcSemaphore, 1, NULL);
+    SetLastError(lastErr);
+    return result;
+}
+
+
+int initialize_steam_drm_ipc(void) {
+    HANDLE hConsumeSem, hProduceSem, hFileMapping;
+    LPVOID mappedMemory;
+    undefined4 result;
+    code *closeFn;
+    _SECURITY_ATTRIBUTES securityAttributes;
+    undefined1 securityDescriptor[40];
+
+    // Create a security descriptor for handle inheritance and default DACL
+    InitializeSecurityDescriptor(securityDescriptor, 1);
+    SetSecurityDescriptorDacl(securityDescriptor, TRUE, NULL, FALSE);
+
+    // Fill security attributes
+    securityAttributes.nLength = sizeof(_SECURITY_ATTRIBUTES);
+    securityAttributes.lpSecurityDescriptor = securityDescriptor;
+    securityAttributes.bInheritHandle = FALSE;
+
+    // Create semaphores for IPC
+    hConsumeSem = CreateSemaphoreA(&securityAttributes, 0, 0x200, "STEAM_DIPC_CONSUME");
+    hProduceSem = CreateSemaphoreA(&securityAttributes, 1, 0x200, "SREAM_DIPC_PRODUCE"); // [sic] possible typo
+
+    // Create shared memory (file mapping)
+    hFileMapping = CreateFileMappingA(INVALID_HANDLE_VALUE, &securityAttributes, PAGE_READWRITE, 0, 0x1000, "STEAM_DRM_IPC");
+
+    if (hConsumeSem != NULL && hProduceSem != NULL) {
+        closeFn = CloseHandle_exref;  // Function pointer to CloseHandle or wrapper
+
+        if (hFileMapping == NULL) goto cleanup;
+
+        mappedMemory = MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+        if (mappedMemory != NULL) {
+            // Call DRM handler with mapped handles
+            HANDLE handleBundle[] = { hConsumeSem, hProduceSem, hFileMapping, mappedMemory };
+            result = execute_steam_drm_ipc_transaction(handleBundle, 1); //FUN_0053fe50
+
+            // Cleanup
+            UnmapViewOfFile(mappedMemory);
+            CloseHandle(hFileMapping);
+            CloseHandle(hConsumeSem);
+            CloseHandle(hProduceSem);
+            return result;
+        }
+    }
+
+    closeFn = CloseHandle_exref;
+
+cleanup:
+    if (hFileMapping != NULL) CloseHandle(hFileMapping);
+    if (hConsumeSem != NULL) (*closeFn)(hConsumeSem);
+    if (hProduceSem != NULL) (*closeFn)(hProduceSem);
+
+    return 0;
+}
+
+void run_steam_callback_sequence(void) {
+    undefined4 uVar1, uVar2, uVar3, uVar4, uVar5;
+    undefined4 uVar6, uVar7, uVar8, uVar9, uVar10;
+
+    // Likely sets up core steam context
+    FUN_004b9a20();
+
+    // First round of setup
+    uVar1 = FUN_006d11f0();
+    uVar2 = FUN_00519970();
+    FUN_00449bb0(&LAB_004a3b90, &LAB_004e0b50, uVar1, uVar2);
+
+    // Gather params for main complex callback
+    uVar1 = FUN_004954c0();
+    uVar2 = FUN_005af6a0();
+    uVar3 = FUN_006d1640();
+    uVar4 = FUN_00579970();
+    uVar5 = FUN_006f5bf0();
+    uVar6 = FUN_00487630();
+    uVar7 = FUN_006072f0();
+    uVar8 = FUN_004935c0();
+    uVar9 = FUN_00507280();
+    uVar10 = FUN_0064e640();
+    FUN_0065a6e0(uVar7, uVar8, uVar9, uVar10, uVar1, uVar3, uVar5, uVar2, uVar4, uVar6);
+
+    // Second round of init and finalization
+    uVar1 = FUN_004e6d30();
+    uVar2 = FUN_00548020();
+    uVar3 = FUN_0041b450();
+    uVar4 = FUN_006cb2d0();
+    uVar5 = FUN_00434f80();
+    uVar6 = FUN_00457420();
+    uVar7 = FUN_00626180();
+
+    FUN_005db7a0();
+    FUN_006af6e0();
+
+    uVar8 = FUN_0053fa60();
+    FUN_00589760();
+
+    uVar9 = FUN_00492de0();
+    FUN_00659940(uVar6);
+    FUN_005b3240(uVar2);
+    FUN_004ff560(uVar1);
+    FUN_006c8440(uVar7);
+    FUN_004dc520(uVar4);
+    FUN_00622ba0(uVar3);
+    FUN_005f7c40(uVar9);
+    FUN_00649740(uVar5);
+    FUN_00432760(uVar8);
+    FUN_006205d0();
+
+    return;
+}
+
+int execute_steam_callback(void (*callback)(void)) {
+    // Simulates structured exception handling setup or thread-local context
+    undefined4 *fsOffset = (undefined4 *)__readfsdword(0);  // Windows FS:[0] on x86
+    undefined4 savedFsValue = *fsOffset;
+
+    // Possibly exception table or debugging marker (not used directly)
+    const uint32_t marker = 0x0054264b;  // Matches address of this function
+    const void *sehHandler1 = &LAB_0046bd00;
+    const void *sehHandler2 = &LAB_00b4f8c8;
+
+    // Setup fake SEH frame or context (typical for DRM or anti-debugging)
+    *fsOffset = (undefined4)&savedFsValue;
+
+    // Call the provided Steam-related function
+    callback();
+
+    // Restore FS offset after execution
+    *fsOffset = savedFsValue;
+
+    return 0;
+}
 
 int initialize_exception_handling(void) {
     SIZE_T query_result;
@@ -271,8 +444,10 @@ int steam_check_environment(void) {
     initialize_exception_handling(); //FUN_009ae4f0
 
     // Callback validation
-    check2 = FUN_00542620(FUN_004abe60);
-    DAT_03401f54 = FUN_00601f30();
+    check2 = execute_steam_callback(run_steam_callback_sequence); //FUN_00542620(FUN_004abe60)
+    // NOT FINISHED (run_steam_callback_sequence)
+    
+    DAT_03401f54 = initialize_steam_drm_ipc(); //FUN_00601f30
 
     if (check2 != 0) {
         patch_random_callback(0, 0); //FUN_0040d540
